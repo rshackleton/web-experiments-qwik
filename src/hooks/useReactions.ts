@@ -1,4 +1,4 @@
-import type { QRL } from '@builder.io/qwik';
+import type { QRL, Signal } from '@builder.io/qwik';
 import {
   $,
   noSerialize,
@@ -14,7 +14,6 @@ type Reaction = {
 };
 
 type ReactionsStore = {
-  consent: boolean;
   count: number;
   reactions: Reaction[];
   channel: NoSerialize<RealtimeChannel>;
@@ -26,10 +25,9 @@ type ReactionsStore = {
   sendReaction: QRL<(value: Reaction) => void>;
 };
 
-export function useReactions() {
+export function useReactions(consent: Signal<boolean>) {
   const store = useStore<ReactionsStore>({
     channel: undefined,
-    consent: false,
     count: 0,
     reactions: [],
 
@@ -54,7 +52,7 @@ export function useReactions() {
 
   useVisibleTask$(
     async ({ cleanup, track }) => {
-      track(() => store.consent);
+      track(consent);
 
       cleanup(() => {
         store.channel?.unsubscribe();
@@ -62,7 +60,7 @@ export function useReactions() {
       });
 
       // Ensure user has given consent.
-      if (!store.consent) {
+      if (!consent.value) {
         return;
       }
 
