@@ -1,67 +1,18 @@
-import { $, component$, useSignal, useVisibleTask$ } from '@builder.io/qwik';
+import { component$ } from '@builder.io/qwik';
 import { type DocumentHead } from '@builder.io/qwik-city';
-import { channel } from '~/db/supabase';
+import { useReactions } from '~/hooks/useReactions';
 
 export default component$(() => {
-  const consentSignal = useSignal(false);
-  const countSignal = useSignal(0);
-  const reactionSignal = useSignal<string[]>([]);
-
-  useVisibleTask$(
-    async ({ track }) => {
-      track(consentSignal);
-
-      if (!consentSignal.value) {
-        return;
-      }
-
-      channel
-        // Sync remote presence state with local signals.
-        .on('presence', { event: 'sync' }, () => {
-          const newState = channel.presenceState();
-          console.log(`Presence`, `Sync`, newState);
-          countSignal.value = Object.keys(newState).length;
-        })
-        // Watch for reactions, push to signal array.
-        .on('broadcast', { event: 'reaction' }, ({ payload }) => {
-          console.log(`Reaction`, `Received`, payload.message);
-          reactionSignal.value = [...reactionSignal.value, payload.message];
-        })
-        .subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            const presenceTrackStatus = await channel.track({
-              online_at: new Date().toISOString(),
-            });
-
-            console.log(`Presence`, `Track`, presenceTrackStatus);
-          }
-        });
-    },
-    { strategy: 'document-idle' },
-  );
-
-  const sendReaction = $((value: string) => {
-    console.log(`Reaction`, `Sent`, value);
-
-    reactionSignal.value = [...reactionSignal.value, value];
-
-    channel.send({
-      type: 'broadcast',
-      event: 'reaction',
-      payload: {
-        message: value,
-      },
-    });
-  });
+  const store = useReactions();
 
   return (
     <>
-      {consentSignal.value ? (
+      {store.consent ? (
         <div class="flex flex-col gap-4">
           <p class="text-xl" aria-live="polite">
             Number of active users:{' '}
             <span class="text-purple-700 font-medium tabular-nums">
-              {countSignal}
+              {store.count}
             </span>
           </p>
 
@@ -72,7 +23,7 @@ export default component$(() => {
                 <button
                   type="button"
                   onClick$={() => {
-                    sendReaction('❤️');
+                    store.sendReaction({ name: 'heart' });
                   }}
                   preventdefault:click
                 >
@@ -83,7 +34,7 @@ export default component$(() => {
                 <button
                   type="button"
                   onClick$={() => {
-                    sendReaction('👍');
+                    store.sendReaction({ name: '+1' });
                   }}
                   preventdefault:click
                 >
@@ -94,7 +45,7 @@ export default component$(() => {
                 <button
                   type="button"
                   onClick$={() => {
-                    sendReaction('👎');
+                    store.sendReaction({ name: '-1' });
                   }}
                   preventdefault:click
                 >
@@ -105,7 +56,7 @@ export default component$(() => {
                 <button
                   type="button"
                   onClick$={() => {
-                    sendReaction('😮');
+                    store.sendReaction({ name: 'wow' });
                   }}
                   preventdefault:click
                 >
@@ -118,15 +69,25 @@ export default component$(() => {
           <div>
             <p class="font-medium">Reactions:</p>
             <ul aria-atomic="true" aria-live="polite">
-              {reactionSignal.value.map((message, index) => (
+              {store.reactions.map((reaction, index) => (
                 <li
-                  key={`${message}-${index}`}
-                  aria-label={`Someone reacted with ${message}`}
+                  key={`${reaction}-${index}`}
+                  aria-label={`Someone reacted with ${reaction}`}
                 >
-                  {message}
+                  {reaction.name}
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div>
+            <button
+              onClick$={() => {
+                store.consent = false;
+              }}
+            >
+              Revoke Consent
+            </button>
           </div>
         </div>
       ) : (
@@ -135,7 +96,8 @@ export default component$(() => {
             type="checkbox"
             name="consent"
             id="consent"
-            bind:checked={consentSignal}
+            checked={store.consent}
+            onChange$={(_, el) => (store.consent = el.checked)}
           />
           I consent to the real-time social functionality.
         </label>

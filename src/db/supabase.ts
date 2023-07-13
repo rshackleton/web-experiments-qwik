@@ -4,5 +4,3 @@ export const client = createClient(
   `https://${import.meta.env.PUBLIC_SUPABASE_PROJECT}.supabase.co`,
   import.meta.env.PUBLIC_SUPABASE_KEY,
 );
-
-export const channel = client.channel('room-1');
